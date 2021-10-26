@@ -2,7 +2,6 @@
 
 namespace App\Commands;
 
-use Illuminate\Console\Scheduling\Schedule;
 use LaravelZero\Framework\Commands\Command;
 
 class UpdateCommand extends Command
@@ -95,18 +94,22 @@ class UpdateCommand extends Command
         }
 
         // Update translations
-        exec("wp language core update");
-        exec("wp language plugin update --all");
+        if ($this->confirm("Update translations?", true)) {
+            exec("wp language core update");
+            exec("wp language plugin update --all");
 
-        if (!$this->wdIsClean()) {
-            $this->info("✅ Updated translations");
+            if (!$this->wdIsClean()) {
+                $this->info("✅ Updated translations");
 
-            $changelog->push("- Updated translations");
+                $changelog->push("- Updated translations");
 
-            // Git commit
-            if ($this->confirm("Commit to git?", true)) {
-                exec("git add -A");
-                exec("git commit -m\"update translations\"");
+                // Git commit
+                if ($this->confirm("Commit to git?", true)) {
+                    exec("git add -A");
+                    exec("git commit -m\"update translations\"");
+                }
+            } else {
+                $this->info("✅ Translations already up to date");
             }
         }
 
@@ -115,16 +118,5 @@ class UpdateCommand extends Command
         $this->line("=== CHANGELOG ===============================================");
         $this->line($changelog->implode("\n"));
         $this->line("==============================================================");
-    }
-
-    /**
-     * Define the command's schedule.
-     *
-     * @param  \Illuminate\Console\Scheduling\Schedule $schedule
-     * @return void
-     */
-    public function schedule(Schedule $schedule): void
-    {
-        // $schedule->command(static::class)->everyMinute();
     }
 }
