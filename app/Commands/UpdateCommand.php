@@ -40,11 +40,40 @@ class UpdateCommand extends Command
             return;
         }
 
+        $changelog = collect([]);
+
+        // Check for core updates
+        exec("wp core check-update --format=json", $coreUpdates);
+        $coreUpdates = $coreUpdates ? json_decode($coreUpdates[0], true) : [];
+
+
+        if (sizeof($coreUpdates) > 0) {
+            // Get current version
+            exec("wp core version", $oldVersion);
+            $oldVersion = trim($oldVersion[0]);
+
+            if ($this->confirm("Update core ($oldVersion → {$coreUpdates[0]['version']})?", true)) {
+                // Update
+                exec("wp core update");
+
+                // Get new version
+                exec("wp core version", $newVersion);
+                $newVersion = trim($newVersion[0]);
+
+                // Add to changelog
+                $changelog->push("- Updated WordPress core `{$oldVersion}` → `{$newVersion}`");
+
+                // Git commit
+                if ($this->confirm("Commit to git?", true)) {
+                    exec("git add -A");
+                    exec("git commit -m\"update wp core\"");
+                }
+            }
+        }
+
         // Get list of all plugins
         exec("wp plugin list --format=json", $plugins);
         $plugins = json_decode($plugins[0], true);
-
-        $changelog = collect([]);
 
         foreach ($plugins as $plugin) {
             // Skip plugins that are not active
