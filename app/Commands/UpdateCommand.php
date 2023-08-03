@@ -140,6 +140,32 @@ class UpdateCommand extends Command
             }
         }
 
+        // Push to remove and create a release?
+        if ($io->confirm("Push to remote?", true)) {
+            exec("git push");
+            $io->success("Pushed to remote");
+
+            if ($io->confirm("Create release?", true)) {
+                // Create temporary file with changelog
+                $temp = tempnam(sys_get_temp_dir(), 'changelog');
+                file_put_contents($temp, $changelog->implode("\n"));
+
+                // Current date
+                $date = date('Y-m-d');
+
+                // Create release
+                exec("gh release create {$date} --title=\"{$date}\" --notes-file=\"{$temp}\" --draft");
+
+                // Remove temporary file
+                unlink($temp);
+
+                $io->success("Created release {$date}");
+
+                // Open releases in browser
+                exec("gh browse --releases");
+            }
+        }
+
         // Output changelog
         $io->title("Changelog");
         $io->writeln($changelog->toArray());
