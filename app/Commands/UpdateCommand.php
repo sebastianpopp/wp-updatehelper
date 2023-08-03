@@ -31,6 +31,11 @@ class UpdateCommand extends Command
             return Command::FAILURE;
         }
 
+        // Open wp-admin
+        if ($io->confirm("Open wp-admin?", true)) {
+            exec("wp admin");
+        }
+
         $changelog = collect([]);
 
         // Check for core updates
