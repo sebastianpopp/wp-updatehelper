@@ -119,7 +119,7 @@ class UpdateCommand extends Command
 
                 // Check for the status
                 if ($pluginupdate[0]['status'] !== "Updated") {
-                    return null;
+                    return [false, $pluginupdate[0]['status']];
                 }
 
                 $old_version = $pluginupdate[0]['old_version'];
@@ -128,15 +128,15 @@ class UpdateCommand extends Command
                 // Add changelog entry
                 $changelog->push("- Updated plugin {$updateablePlugins[$plugin]} `{$old_version}` → `{$new_version}`");
 
-                return [$old_version, $new_version];
+                return [true, $old_version, $new_version];
             }, "Updating {$updateablePlugins[$plugin]}");
 
-            if ($versions === null) {
-                warning("Update might have failed: {$pluginupdate[0]['status']}");
+            if ($versions[0] === false) {
+                warning("Update might have failed: {$versions[1]}");
                 continue;
             }
 
-            list($old_version, $new_version) = $versions;
+            list($_, $old_version, $new_version) = $versions;
 
             note("Update for {$updateablePlugins[$plugin]} installed {$old_version} → {$new_version}");
 
