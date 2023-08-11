@@ -10,9 +10,9 @@ require __DIR__ . '/vendor/autoload.php';
 $application = new Application();
 
 // Register the Command and make it default
-$updateCommand = new UpdateCommand();
-$application->add($updateCommand);
-$application->setDefaultCommand($updateCommand->getName());
+$update_command = new UpdateCommand();
+$application->add($update_command);
+$application->setDefaultCommand($update_command->getName());
 
 // Run the application
 $application->run();
