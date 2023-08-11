@@ -13,5 +13,8 @@
             "App\\": "app/"
         }
     },
-    "bin": "wp-updatehelper"
+    "bin": "wp-updatehelper",
+    "require-dev": {
+        "laravel/pint": "^1.10"
+    }
 }
