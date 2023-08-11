@@ -10,8 +10,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
+use function Laravel\Prompts\info;
 use function Laravel\Prompts\multiselect;
-use function Laravel\Prompts\note;
 use function Laravel\Prompts\spin;
 use function Laravel\Prompts\warning;
 
@@ -45,30 +45,32 @@ class UpdateCommand extends Command
         $changelog = collect([]);
 
         // Check for core updates
-        $coreUpdates = [];
-        spin(function() use (&$coreUpdates) {
-            exec("wp core check-update --format=json", $coreUpdates);
-            $coreUpdates = $coreUpdates ? json_decode($coreUpdates[0], true) : [];
+        $core_updates = [];
+        spin(function() use (&$core_updates) {
+            exec("wp core check-update --format=json", $core_updates);
+            $core_updates = $core_updates ? json_decode($core_updates[0], true) : [];
         }, "Checking for core updates");
 
-        if (sizeof($coreUpdates) > 0) {
+        if (sizeof($core_updates) > 0) {
             // Get current version
-            $oldVersion = '';
-            spin(function() use (&$oldVersion) {
-                exec("wp core version", $oldVersion);
-                $oldVersion = trim($oldVersion[0]);
+            $old_version = '';
+            spin(function() use (&$old_version) {
+                exec("wp core version", $old_version);
+                $old_version = trim($old_version[0]);
             }, "Getting current version");
 
-            if (confirm("Update core ($oldVersion → {$coreUpdates[0]['version']})?")) {
+            if (confirm("Update core ($old_version → {$core_updates[0]['version']})?")) {
                 // Update
                 exec("wp core update");
 
                 // Get new version
-                exec("wp core version", $newVersion);
-                $newVersion = trim($newVersion[0]);
+                exec("wp core version", $new_version);
+                $new_version = trim($new_version[0]);
+
+                info("Update for WordPress core installed {$old_version} → {$new_version}");
 
                 // Add to changelog
-                $changelog->push("- Updated WordPress core `{$oldVersion}` → `{$newVersion}`");
+                $changelog->push("- Updated WordPress core `{$old_version}` → `{$new_version}`");
 
                 // Git commit
                 if (confirm("Commit changes to git?")) {
@@ -79,14 +81,14 @@ class UpdateCommand extends Command
         }
 
         // Get list of all plugins
-        $updateablePlugins = [];
-        spin(function () use (&$updateablePlugins) {
+        $updateable_plugins = [];
+        spin(function () use (&$updateable_plugins) {
             exec("wp plugin list --format=json", $plugins);
-            $allPlugins = json_decode($plugins[0], true);
+            $all_plugins = json_decode($plugins[0], true);
 
 
             // Get list of updateable plugins with information
-            foreach ($allPlugins as $plugin) {
+            foreach ($all_plugins as $plugin) {
                 // Skip plugins that are not active
                 if ($plugin['status'] !== 'active') {
                     continue;
@@ -102,16 +104,16 @@ class UpdateCommand extends Command
                 exec("wp plugin get {$plugin['name']} --format=json", $plugininfo);
                 $plugininfo = json_decode($plugininfo[0], true);
 
-                $updateablePlugins[$plugin['name']] = $plugininfo['title'];
+                $updateable_plugins[$plugin['name']] = $plugininfo['title'];
             }
         }, "Getting list of plugins with updates");
 
-        $updatePlugins = multiselect("Select plugins to update", $updateablePlugins, array_keys($updateablePlugins));
+        $update_plugins = multiselect("Select plugins to update", $updateable_plugins, array_keys($updateable_plugins));
 
-        $autoCommit = confirm("Automatically commit changes to git?", true);
+        $auto_commit = confirm("Automatically commit changes to git?", true);
 
-        foreach ($updatePlugins as $plugin) {
-            $versions = spin(function () use ($plugin, $updateablePlugins, $autoCommit, &$changelog) {
+        foreach ($update_plugins as $plugin) {
+            $versions = spin(function () use ($plugin, $updateable_plugins, &$changelog) {
                 // Update the plugin
                 $pluginupdate = null;
                 exec("wp plugin update {$plugin} --format=json", $pluginupdate);
@@ -126,10 +128,10 @@ class UpdateCommand extends Command
                 $new_version = $pluginupdate[0]['new_version'];
 
                 // Add changelog entry
-                $changelog->push("- Updated plugin {$updateablePlugins[$plugin]} `{$old_version}` → `{$new_version}`");
+                $changelog->push("- Updated plugin {$updateable_plugins[$plugin]} `{$old_version}` → `{$new_version}`");
 
                 return [true, $old_version, $new_version];
-            }, "Updating {$updateablePlugins[$plugin]}");
+            }, "Updating {$updateable_plugins[$plugin]}");
 
             if ($versions[0] === false) {
                 warning("Update might have failed: {$versions[1]}");
@@ -138,10 +140,10 @@ class UpdateCommand extends Command
 
             list($_, $old_version, $new_version) = $versions;
 
-            note("Update for {$updateablePlugins[$plugin]} installed {$old_version} → {$new_version}");
+            info("Update for {$updateable_plugins[$plugin]} installed {$old_version} → {$new_version}");
 
             // Git commit
-            if ($autoCommit || confirm("Commit changes to git?")) {
+            if ($auto_commit || confirm("Commit changes to git?")) {
                 spin(function () use ($plugin) {
                     exec("git add -A");
                     exec("git commit -m\"update {$plugin}\"");
@@ -157,7 +159,7 @@ class UpdateCommand extends Command
             }, "Updating translations");
 
             if (!$this->wdIsClean()) {
-                note("Updated translations");
+                info("Updated translations");
 
                 $changelog->push("- Updated translations");
 
@@ -167,14 +169,14 @@ class UpdateCommand extends Command
                     exec("git commit -m\"update translations\"");
                 }
             } else {
-                note("Translations already up to date");
+                info("Translations already up to date");
             }
         }
 
         // Push to remove and create a release?
         if (confirm("Push to remote?")) {
             exec("git push");
-            note("Pushed to remote");
+            info("Pushed to remote");
 
             if (confirm("Create release?")) {
                 // Create temporary file with changelog
@@ -190,7 +192,7 @@ class UpdateCommand extends Command
                 // Remove temporary file
                 unlink($temp);
 
-                note("Created release {$date}");
+                info("Created release {$date}");
 
                 // Open releases in browser
                 exec("gh browse --releases");
