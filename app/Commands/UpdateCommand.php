@@ -146,8 +146,6 @@ class UpdateCommand extends Command
                     }, 'Committing changes to git');
                 }
             }
-        } else {
-            info('Plugins already up to date');
         }
 
         // Update translations
@@ -172,37 +170,39 @@ class UpdateCommand extends Command
             }
         }
 
-        // Push to remove and create a release?
-        if (confirm('Push to remote?')) {
-            exec('git push');
-            info('Pushed to remote');
+        if (! $changelog->empty()) {
+            // Push to remove and create a release?
+            if (confirm('Push to remote?')) {
+                exec('git push');
+                info('Pushed to remote');
 
-            if (confirm('Create release?')) {
-                // Create temporary file with changelog
-                $temp = tempnam(sys_get_temp_dir(), 'changelog');
-                file_put_contents($temp, $changelog->implode("\n"));
+                if (confirm('Create release?')) {
+                    // Create temporary file with changelog
+                    $temp = tempnam(sys_get_temp_dir(), 'changelog');
+                    file_put_contents($temp, $changelog->implode("\n"));
 
-                // Current date
-                $date = date('Y-m-d');
+                    // Current date
+                    $date = date('Y-m-d');
 
-                // Create release
-                exec("gh release create {$date} --title=\"{$date}\" --notes-file=\"{$temp}\" --draft");
+                    // Create release
+                    exec("gh release create {$date} --title=\"{$date}\" --notes-file=\"{$temp}\" --draft");
 
-                // Remove temporary file
-                unlink($temp);
+                    // Remove temporary file
+                    unlink($temp);
 
-                info("Created release {$date}");
+                    info("Created release {$date}");
 
-                // Open releases in browser
-                exec('gh browse --releases');
+                    // Open releases in browser
+                    exec('gh browse --releases');
+                }
             }
-        }
 
-        // Output changelog
-        $io = new SymfonyStyle($input, $output);
-        $io->title('Changelog');
-        $io->writeln($changelog->toArray());
-        $io->newLine();
+            // Output changelog
+            $io = new SymfonyStyle($input, $output);
+            $io->title('Changelog');
+            $io->writeln($changelog->toArray());
+            $io->newLine();
+        }
 
         return Command::SUCCESS;
     }
