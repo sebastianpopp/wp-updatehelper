@@ -88,11 +88,6 @@ class UpdateCommand extends Command
 
             // Get list of updateable plugins with information
             foreach ($all_plugins as $plugin) {
-                // Skip plugins that are not active
-                if ($plugin['status'] !== 'active') {
-                    continue;
-                }
-
                 // Skip plugins that don't have an update available
                 if ($plugin['update'] !== 'available') {
                     continue;
