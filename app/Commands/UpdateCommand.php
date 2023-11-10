@@ -5,6 +5,7 @@ namespace App\Commands;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Style\SymfonyStyle;
 
@@ -21,6 +22,13 @@ use function Laravel\Prompts\warning;
 )]
 class UpdateCommand extends Command
 {
+    protected function configure(): void
+    {
+        $this
+            ->addOption('autopilot', 'a', InputOption::VALUE_NONE, 'Run without asking for confirmation')
+            ->addOption('autodeploy', 'd', InputOption::VALUE_NONE, 'Create a release without asking for confirmation');
+    }
+
     protected function wdIsClean()
     {
         exec("[[ -n $(git status -s) ]] || echo 'clean'", $result);
@@ -30,6 +38,9 @@ class UpdateCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        $autopilot = $input->getOption('autopilot') === true;
+        $autodeploy = $input->getOption('autodeploy') === true;
+
         // Check if working directory is clean
         if (! $this->wdIsClean()) {
             error('Needs a clean working directory.');
@@ -38,7 +49,7 @@ class UpdateCommand extends Command
         }
 
         // Open wp-admin
-        if (confirm('Do you want to open WP admin?')) {
+        if (!$autopilot && confirm('Do you want to open WP admin?')) {
             exec('wp admin');
         }
 
@@ -59,7 +70,7 @@ class UpdateCommand extends Command
                 $old_version = trim($old_version[0]);
             }, 'Getting current version');
 
-            if (confirm("Update core ($old_version → {$core_updates[0]['version']})?")) {
+            if ($autopilot || confirm("Update core ($old_version → {$core_updates[0]['version']})?")) {
                 // Update
                 exec('wp core update');
 
@@ -73,11 +84,13 @@ class UpdateCommand extends Command
                 $changelog->push("- Updated WordPress core `{$old_version}` → `{$new_version}`");
 
                 // Git commit
-                if (confirm('Commit changes to git?')) {
+                if ($autopilot || confirm('Commit changes to git?')) {
                     exec('git add -A');
                     exec('git commit -m"update wp core"');
                 }
             }
+        } else {
+            info('WordPress core already up to date');
         }
 
         // Get list of all plugins
@@ -105,7 +118,7 @@ class UpdateCommand extends Command
         if (count($updateable_plugins) > 0) {
             $update_plugins = multiselect('Select plugins to update', $updateable_plugins, array_keys($updateable_plugins));
 
-            $auto_commit = confirm('Automatically commit changes to git?', true);
+            $auto_commit = $autopilot || confirm('Automatically commit changes to git?', true);
 
             foreach ($update_plugins as $plugin) {
                 $versions = spin(function () use ($plugin, $updateable_plugins, &$changelog) {
@@ -146,10 +159,12 @@ class UpdateCommand extends Command
                     }, 'Committing changes to git');
                 }
             }
+        } else {
+            info('Plugins already up to date');
         }
 
         // Update translations
-        if (confirm('Update translations?')) {
+        if ($autopilot || confirm('Update translations?')) {
             spin(function () {
                 exec('wp language core update');
                 exec('wp language plugin update --all');
@@ -161,7 +176,7 @@ class UpdateCommand extends Command
                 $changelog->push('- Updated translations');
 
                 // Git commit
-                if (confirm('Commit changes to git?')) {
+                if ($autopilot || confirm('Commit changes to git?')) {
                     exec('git add -A');
                     exec('git commit -m"update translations"');
                 }
@@ -172,11 +187,11 @@ class UpdateCommand extends Command
 
         if (! $changelog->empty()) {
             // Push to remove and create a release?
-            if (confirm('Push to remote?')) {
+            if ($autodeploy || confirm('Push to remote?')) {
                 exec('git push');
                 info('Pushed to remote');
 
-                if (confirm('Create release?')) {
+                if ($autodeploy || confirm('Create release?')) {
                     // Create temporary file with changelog
                     $temp = tempnam(sys_get_temp_dir(), 'changelog');
                     file_put_contents($temp, $changelog->implode("\n"));
@@ -191,6 +206,9 @@ class UpdateCommand extends Command
                     unlink($temp);
 
                     info("Created release {$date}");
+
+                    // Wait for release to be created
+                    sleep(1);
 
                     // Open releases in browser
                     exec('gh browse --releases');
