@@ -102,48 +102,52 @@ class UpdateCommand extends Command
             }
         }, 'Getting list of plugins with updates');
 
-        $update_plugins = multiselect('Select plugins to update', $updateable_plugins, array_keys($updateable_plugins));
+        if (count($updateable_plugins) > 0) {
+            $update_plugins = multiselect('Select plugins to update', $updateable_plugins, array_keys($updateable_plugins));
 
-        $auto_commit = confirm('Automatically commit changes to git?', true);
+            $auto_commit = confirm('Automatically commit changes to git?', true);
 
-        foreach ($update_plugins as $plugin) {
-            $versions = spin(function () use ($plugin, $updateable_plugins, &$changelog) {
-                // Update the plugin
-                $pluginupdate = null;
-                exec("wp plugin update {$plugin} --format=json", $pluginupdate);
-                $pluginupdate = json_decode($pluginupdate[0], true);
+            foreach ($update_plugins as $plugin) {
+                $versions = spin(function () use ($plugin, $updateable_plugins, &$changelog) {
+                    // Update the plugin
+                    $pluginupdate = null;
+                    exec("wp plugin update {$plugin} --format=json", $pluginupdate);
+                    $pluginupdate = json_decode($pluginupdate[0], true);
 
-                // Check for the status
-                if ($pluginupdate[0]['status'] !== 'Updated') {
-                    return [false, $pluginupdate[0]['status']];
+                    // Check for the status
+                    if ($pluginupdate[0]['status'] !== 'Updated') {
+                        return [false, $pluginupdate[0]['status']];
+                    }
+
+                    $old_version = $pluginupdate[0]['old_version'];
+                    $new_version = $pluginupdate[0]['new_version'];
+
+                    // Add changelog entry
+                    $changelog->push("- Updated plugin {$updateable_plugins[$plugin]} `{$old_version}` → `{$new_version}`");
+
+                    return [true, $old_version, $new_version];
+                }, "Updating {$updateable_plugins[$plugin]}");
+
+                if ($versions[0] === false) {
+                    warning("Update might have failed: {$versions[1]}");
+
+                    continue;
                 }
 
-                $old_version = $pluginupdate[0]['old_version'];
-                $new_version = $pluginupdate[0]['new_version'];
+                [$_, $old_version, $new_version] = $versions;
 
-                // Add changelog entry
-                $changelog->push("- Updated plugin {$updateable_plugins[$plugin]} `{$old_version}` → `{$new_version}`");
+                info("Update for {$updateable_plugins[$plugin]} installed {$old_version} → {$new_version}");
 
-                return [true, $old_version, $new_version];
-            }, "Updating {$updateable_plugins[$plugin]}");
-
-            if ($versions[0] === false) {
-                warning("Update might have failed: {$versions[1]}");
-
-                continue;
+                // Git commit
+                if ($auto_commit || confirm('Commit changes to git?')) {
+                    spin(function () use ($plugin) {
+                        exec('git add -A');
+                        exec("git commit -m\"update {$plugin}\"");
+                    }, 'Committing changes to git');
+                }
             }
-
-            [$_, $old_version, $new_version] = $versions;
-
-            info("Update for {$updateable_plugins[$plugin]} installed {$old_version} → {$new_version}");
-
-            // Git commit
-            if ($auto_commit || confirm('Commit changes to git?')) {
-                spin(function () use ($plugin) {
-                    exec('git add -A');
-                    exec("git commit -m\"update {$plugin}\"");
-                }, 'Committing changes to git');
-            }
+        } else {
+            info('Plugins already up to date');
         }
 
         // Update translations
