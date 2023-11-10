@@ -116,7 +116,9 @@ class UpdateCommand extends Command
         }, 'Getting list of plugins with updates');
 
         if (count($updateable_plugins) > 0) {
-            $update_plugins = multiselect('Select plugins to update', $updateable_plugins, array_keys($updateable_plugins));
+            $update_plugins = $autopilot
+                ? array_keys($updateable_plugins)
+                : multiselect('Select plugins to update', $updateable_plugins, array_keys($updateable_plugins));
 
             $auto_commit = $autopilot || confirm('Automatically commit changes to git?', true);
 
@@ -185,7 +187,7 @@ class UpdateCommand extends Command
             }
         }
 
-        if (! $changelog->empty()) {
+        if ($changelog->isNotEmpty()) {
             // Push to remove and create a release?
             if ($autodeploy || confirm('Push to remote?')) {
                 exec('git push');
