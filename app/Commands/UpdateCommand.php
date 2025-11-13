@@ -62,7 +62,7 @@ class UpdateCommand extends Command
             $core_updates = $core_updates ? json_decode($core_updates[0], true) : [];
         }, 'Checking for core updates');
 
-        if (count($core_updates) > 0) {
+        if ($core_updates && count($core_updates) > 0) {
             // Get current version
             $old_version = '';
             spin(function () use (&$old_version) {
