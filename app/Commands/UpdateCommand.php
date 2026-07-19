@@ -13,6 +13,7 @@ use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\error;
 use function Laravel\Prompts\info;
 use function Laravel\Prompts\multiselect;
+use function Laravel\Prompts\select;
 use function Laravel\Prompts\spin;
 use function Laravel\Prompts\warning;
 
@@ -70,9 +71,17 @@ class UpdateCommand extends Command
                 $old_version = trim($old_version[0]);
             }, 'Getting current version');
 
-            if ($autopilot || confirm("Update core ($old_version → {$core_updates[0]['version']})?")) {
+            // If multiple versions are available, ask which one to install
+            $target_update = $core_updates[0];
+            if (count($core_updates) > 1 && !$autopilot) {
+                $versions = collect($core_updates)->pluck('version')->all();
+                $chosen_version = select('Multiple WordPress core versions available, which one do you want to install?', $versions);
+                $target_update = collect($core_updates)->firstWhere('version', $chosen_version);
+            }
+
+            if ($autopilot || confirm("Update core ($old_version → {$target_update['version']})?")) {
                 // Update
-                exec('wp core update');
+                exec('wp core update --version=' . $target_update['version']);
 
                 // Get new version
                 exec('wp core version', $new_version);
