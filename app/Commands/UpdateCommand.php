@@ -71,15 +71,28 @@ class UpdateCommand extends Command
                 $old_version = trim($old_version[0]);
             }, 'Getting current version');
 
-            // If multiple versions are available, ask which one to install
-            $target_update = $core_updates[0];
-            if (count($core_updates) > 1 && !$autopilot) {
-                $versions = collect($core_updates)->pluck('version')->all();
-                $chosen_version = select('Multiple WordPress core versions available, which one do you want to install?', $versions);
-                $target_update = collect($core_updates)->firstWhere('version', $chosen_version);
+            // Sort available updates, latest version first
+            $core_updates = collect($core_updates)
+                ->sort(fn ($a, $b) => version_compare($b['version'], $a['version']))
+                ->values();
+            $target_update = $core_updates->first();
+
+            if ($autopilot) {
+                $do_update = true;
+            } elseif ($core_updates->count() > 1) {
+                // If multiple versions are available, ask which one to install (defaults to latest)
+                $options = $core_updates
+                    ->mapWithKeys(fn ($update) => [$update['version'] => "$old_version → {$update['version']}"])
+                    ->put('skip', "Don't update")
+                    ->all();
+                $chosen_version = select('Multiple WordPress core versions available, which one do you want to install?', $options, $target_update['version']);
+                $do_update = $chosen_version !== 'skip';
+                $target_update = $core_updates->firstWhere('version', $chosen_version);
+            } else {
+                $do_update = confirm("Update core ($old_version → {$target_update['version']})?");
             }
 
-            if ($autopilot || confirm("Update core ($old_version → {$target_update['version']})?")) {
+            if ($do_update) {
                 // Update
                 exec('wp core update --version=' . $target_update['version']);
 
