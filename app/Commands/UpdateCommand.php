@@ -37,6 +37,32 @@ class UpdateCommand extends Command
         return count($result) === 1 && $result[0] === 'clean';
     }
 
+    /**
+     * Commits staged changes, retrying if git fails to acquire index.lock
+     * (e.g. a stale lock left behind by a crashed/concurrent git process).
+     */
+    protected function gitCommit(string $message, int $maxRetries = 3): bool
+    {
+        exec('git add -A');
+
+        for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+            exec('git commit -m ' . escapeshellarg($message) . ' 2>&1', $output, $exitCode);
+
+            if ($exitCode === 0) {
+                return true;
+            }
+
+            if ($attempt < $maxRetries) {
+                sleep(2);
+                $output = [];
+            }
+        }
+
+        warning('Git commit failed after ' . ($maxRetries + 1) . " attempts:\n" . implode("\n", $output));
+
+        return false;
+    }
+
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $autopilot = $input->getOption('autopilot') === true;
@@ -107,8 +133,7 @@ class UpdateCommand extends Command
 
                 // Git commit
                 if ($autopilot || confirm('Commit changes to git?')) {
-                    exec('git add -A');
-                    exec('git commit -m"update wp core"');
+                    spin(fn () => $this->gitCommit('update wp core'), 'Committing changes to git');
                 }
             }
         } else {
@@ -177,10 +202,7 @@ class UpdateCommand extends Command
 
                 // Git commit
                 if ($auto_commit || confirm('Commit changes to git?')) {
-                    spin(function () use ($plugin) {
-                        exec('git add -A');
-                        exec("git commit -m\"update {$plugin}\"");
-                    }, 'Committing changes to git');
+                    spin(fn () => $this->gitCommit("update {$plugin}"), 'Committing changes to git');
                 }
             }
         } else {
@@ -201,8 +223,7 @@ class UpdateCommand extends Command
 
                 // Git commit
                 if ($autopilot || confirm('Commit changes to git?')) {
-                    exec('git add -A');
-                    exec('git commit -m"update translations"');
+                    spin(fn () => $this->gitCommit('update translations'), 'Committing changes to git');
                 }
             } else {
                 info('Translations already up to date');
